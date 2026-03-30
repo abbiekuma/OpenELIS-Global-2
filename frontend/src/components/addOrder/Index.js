@@ -49,6 +49,7 @@ const Index = () => {
     "sampleOrderItems.providerFirstName": false,
     "sampleOrderItems.providerLastName": false,
     "sampleOrderItems.labNo": false,
+    "patientProperties.nationalId": false,
   });
   const [page, setPage] = useState(firstPageNumber);
   const isEQAFromUrl =
@@ -817,6 +818,8 @@ const Index = () => {
                   setOrderFormValues={setOrderFormValues}
                   error={elementError}
                   setPhoneValidation={setPhoneValidation}
+                  changed={changed}
+                  setChanged={setChanged}
                 />
               </>
             )}
