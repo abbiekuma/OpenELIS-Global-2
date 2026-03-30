@@ -851,6 +851,8 @@ function CreatePatientForm(props) {
                         errors.nationalId &&
                         touched.nationalId
                       );
+                      const nationalIdInvalid =
+                        orderNationalIdInvalid || formikNationalIdInvalid;
                       return (
                         <TextInput
                           value={values.nationalId || ""}
@@ -864,13 +866,13 @@ function CreatePatientForm(props) {
                             </>
                           }
                           id={field.name}
-                          invalid={
-                            orderNationalIdInvalid || formikNationalIdInvalid
-                          }
+                          invalid={nationalIdInvalid}
                           invalidText={
-                            orderNationalIdInvalid
-                              ? props.error("patientProperties.nationalId")
-                              : errors.nationalId || ""
+                            nationalIdInvalid
+                              ? orderNationalIdInvalid
+                                ? props.error("patientProperties.nationalId")
+                                : errors.nationalId || ""
+                              : ""
                           }
                           onClick={() => {
                             if (props.setChanged) {

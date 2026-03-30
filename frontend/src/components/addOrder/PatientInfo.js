@@ -49,6 +49,12 @@ const PatientInfo = (props) => {
   };
 
   const handleNewPatientTab = () => {
+    if (setChanged) {
+      setChanged((prev) => ({
+        ...prev,
+        "patientProperties.nationalId": false,
+      }));
+    }
     setNewPatientTab({ kind: "primary", active: true });
     setSearchPatientTab({ kind: "tertiary", active: false });
   };
