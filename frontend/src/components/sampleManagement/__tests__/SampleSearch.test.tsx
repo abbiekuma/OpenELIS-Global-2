@@ -1,7 +1,6 @@
 import React from "react";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, jest, test } from "@jest/globals";
 import "@testing-library/jest-dom";
 import { IntlProvider } from "react-intl";
 import messages from "../../../languages/en.json";
@@ -39,8 +38,12 @@ describe("SampleSearch", () => {
       <SampleSearch onSearchResults={onSearchResults} includeTests={true} />,
     );
 
+    const input = screen.getByRole("searchbox", {
+      name: msg["sample.management.search.label"],
+    });
+
     await userEvent.type(
-      screen.getByLabelText(msg["sample.management.search.label"]),
+      input,
       "A-1",
     );
     await userEvent.click(
@@ -67,8 +70,11 @@ describe("SampleSearch", () => {
 
     renderWithIntl(<SampleSearch onSearchResults={onSearchResults} />);
 
-    const input = screen.getByLabelText(msg["sample.management.search.label"]);
-    await userEvent.type(input, "A-2{enter}");
+    const input = screen.getByRole("searchbox", {
+      name: msg["sample.management.search.label"],
+    });
+    await userEvent.type(input, "A-2");
+    fireEvent.keyDown(input, { key: "Enter", code: "Enter", charCode: 13 });
 
     expect(getFromOpenElisServer).toHaveBeenCalledTimes(1);
     expect(
