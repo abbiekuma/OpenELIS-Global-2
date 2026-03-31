@@ -16,55 +16,70 @@ import SampleResultsTable from "./SampleResultsTable";
 import CreateAliquotModal from "./CreateAliquotModal";
 import AddTestsModal from "./AddTestsModal";
 import config from "../../config.json";
+import type {
+  AddTestsSuccessPayload,
+  AliquotCreationSuccessPayload,
+  SampleItem,
+  SearchBannerState,
+  SearchSamplesResponse,
+} from "./sampleManagementTypes";
+
+interface BreadcrumbItem {
+  label: string;
+  link?: string;
+}
+
+interface AliquotStats {
+  aliquots: SampleItem[];
+  parents: SampleItem[];
+  aliquotCount: number;
+  parentCount: number;
+  selectedAliquotCount: number;
+  selectedParentCount: number;
+}
 
 /**
  * SampleManagement - Main container component for Sample Management feature.
- *
- * Features:
- * - Integrates SampleSearch and SampleResultsTable components
- * - Manages search results state
- * - Handles API errors with inline notifications
- * - Provides breadcrumb navigation
- * - Displays search metadata (accession number, result count)
- *
- * This component serves as the entry point for User Story 1: Search for sample
- * items by accession number and view results with hierarchy information.
  *
  * Related: Feature 001-sample-management, User Story 1, Task T035
  */
 export default function SampleManagement() {
   const intl = useIntl();
 
-  // Breadcrumb navigation
-  const breadcrumbs = [
+  const breadcrumbs: BreadcrumbItem[] = [
     { label: "home.label", link: "/" },
     { label: "menu.genericSample" },
     { label: "banner.menu.sampleManagement" },
   ];
 
-  // Search results state
-  const [searchResponse, setSearchResponse] = useState(null);
-  const [searchError, setSearchError] = useState(null);
-  const [selectedSampleIds, setSelectedSampleIds] = useState([]);
+  const [searchResponse, setSearchResponse] =
+    useState<SearchSamplesResponse | null>(null);
+  const [searchError, setSearchError] = useState<SearchBannerState | null>(
+    null,
+  );
+  const [selectedSampleIds, setSelectedSampleIds] = useState<string[]>([]);
 
-  // Modal state for aliquoting
   const [isAliquotModalOpen, setIsAliquotModalOpen] = useState(false);
 
-  // Modal state for adding tests
   const [isAddTestsModalOpen, setIsAddTestsModalOpen] = useState(false);
 
-  // Get selected sample for aliquoting (single selection only)
-  const selectedSample =
+  const selectedSample: SampleItem | null =
     selectedSampleIds.length === 1
       ? searchResponse?.sampleItems?.find(
           (item) => item.id === selectedSampleIds[0],
-        )
+        ) ?? null
       : null;
 
-  // Compute aliquot-related statistics for bulk operations
-  const aliquotStats = useMemo(() => {
+  const aliquotStats: AliquotStats = useMemo(() => {
     if (!searchResponse?.sampleItems) {
-      return { aliquots: [], parents: [], aliquotCount: 0, parentCount: 0 };
+      return {
+        aliquots: [],
+        parents: [],
+        aliquotCount: 0,
+        parentCount: 0,
+        selectedAliquotCount: 0,
+        selectedParentCount: 0,
+      };
     }
 
     const aliquots = searchResponse.sampleItems.filter(
@@ -91,90 +106,54 @@ export default function SampleManagement() {
     };
   }, [searchResponse?.sampleItems, selectedSampleIds]);
 
-  /**
-   * Select all aliquots in the search results.
-   */
   const handleSelectAllAliquots = () => {
     const aliquotIds = aliquotStats.aliquots.map((a) => a.id);
     setSelectedSampleIds(aliquotIds);
   };
 
-  /**
-   * Select all parent samples (non-aliquots) in the search results.
-   */
   const handleSelectAllParents = () => {
     const parentIds = aliquotStats.parents.map((p) => p.id);
     setSelectedSampleIds(parentIds);
   };
 
-  /**
-   * Clear all selections.
-   */
   const handleClearSelection = () => {
     setSelectedSampleIds([]);
   };
 
-  /**
-   * Handle search results callback from SampleSearch component.
-   *
-   * @param {Object} response - SearchSamplesResponse from backend
-   * @param {Object} error - Error object if search failed
-   */
-  const handleSearchResults = (response, error) => {
+  const handleSearchResults = (
+    response: SearchSamplesResponse | null,
+    error: SearchBannerState | null,
+  ) => {
     setSearchResponse(response);
     setSearchError(error);
 
-    // Clear selection when new search results arrive
     setSelectedSampleIds([]);
   };
 
-  /**
-   * Handle row selection changes from SampleResultsTable component.
-   *
-   * @param {Array<string>} selectedIds - Array of selected sample item IDs
-   */
-  const handleSelectionChange = (selectedIds) => {
+  const handleSelectionChange = (selectedIds: string[]) => {
     setSelectedSampleIds(selectedIds);
   };
 
-  /**
-   * Clear error notification.
-   */
   const handleDismissError = () => {
     setSearchError(null);
   };
 
-  /**
-   * Open aliquot modal for the selected sample.
-   */
   const handleOpenAliquotModal = () => {
     setIsAliquotModalOpen(true);
   };
 
-  /**
-   * Close aliquot modal.
-   */
   const handleCloseAliquotModal = () => {
     setIsAliquotModalOpen(false);
   };
 
-  /**
-   * Handle successful aliquot creation.
-   */
-  const handleAliquotSuccess = (response) => {
-    // Refresh search results to show the new aliquot(s)
+  const handleAliquotSuccess = (response: AliquotCreationSuccessPayload) => {
     if (searchResponse && searchResponse.accessionNumber) {
-      handleSearchResults(null, null); // Clear current results
-      // Trigger a re-search by calling the search API directly
-      // Note: In production, you might want to add a refresh mechanism
-      // For now, we'll just show a success message and user can re-search
+      handleSearchResults(null, null);
 
-      // Handle both single and multiple aliquot creation
       const aliquotCount = response.aliquotCount || 1;
-      let message;
+      let message: string;
       if (aliquotCount > 1) {
-        // Multiple aliquots created
-        const externalIds = response.aliquots
+        const externalIds = (response.aliquots || [])
           .map((a) => a.externalId)
           .join(", ");
         message = intl.formatMessage(
@@ -182,10 +161,9 @@ export default function SampleManagement() {
           { count: aliquotCount, externalIds: externalIds },
         );
       } else {
-        // Single aliquot created
         message = intl.formatMessage(
           { id: "sample.management.aliquot.success" },
-          { externalId: response.aliquot.externalId },
+          { externalId: response.aliquot?.externalId ?? "" },
         );
       }
 
@@ -196,35 +174,22 @@ export default function SampleManagement() {
     }
   };
 
-  /**
-   * Open add tests modal.
-   */
   const handleOpenAddTestsModal = () => {
     setIsAddTestsModalOpen(true);
   };
 
-  /**
-   * Close add tests modal.
-   */
   const handleCloseAddTestsModal = () => {
     setIsAddTestsModalOpen(false);
   };
 
-  /**
-   * Handle successful test addition.
-   * Shows detailed per-sample/aliquot breakdown in the success message.
-   */
-  const handleAddTestsSuccess = (response) => {
-    // Calculate totals
+  const handleAddTestsSuccess = (response: AddTestsSuccessPayload) => {
     const totalSkipped = response.results.reduce(
       (sum, r) => sum + (r.skippedTestIds ? r.skippedTestIds.length : 0),
       0,
     );
 
-    // Check if we have multiple samples with detailed results
     const hasDetailedResults = response.results && response.results.length > 1;
 
-    // Build detailed per-sample breakdown for multiple samples
     let detailedBreakdown = "";
     if (hasDetailedResults) {
       const sampleResults = response.results.map((result) => {
@@ -233,7 +198,6 @@ export default function SampleManagement() {
           ? result.skippedTestIds.length
           : 0;
 
-        // Use external ID for display, fallback to sample item ID
         const displayId = result.sampleItemExternalId || result.sampleItemId;
 
         if (skippedCount > 0) {
@@ -252,10 +216,8 @@ export default function SampleManagement() {
       detailedBreakdown = sampleResults.join("; ");
     }
 
-    // Show success message
-    let message;
+    let message: string;
     if (hasDetailedResults) {
-      // Detailed message with per-sample breakdown
       if (totalSkipped > 0) {
         message = intl.formatMessage(
           { id: "sample.management.addTests.successDetailedWithSkipped" },
@@ -277,7 +239,6 @@ export default function SampleManagement() {
         );
       }
     } else {
-      // Simple message for single sample
       if (totalSkipped > 0) {
         message = intl.formatMessage(
           { id: "sample.management.addTests.successWithSkipped" },
@@ -296,14 +257,9 @@ export default function SampleManagement() {
       kind: "success",
     });
 
-    // Clear selection after adding tests
     setSelectedSampleIds([]);
   };
 
-  /**
-   * Handle printing barcode for the sample.
-   * Uses the accession number from the search response.
-   */
   const handlePrintBarCode = () => {
     if (searchResponse && searchResponse.accessionNumber) {
       const barcodesPdf =
@@ -313,18 +269,17 @@ export default function SampleManagement() {
     }
   };
 
-  /**
-   * Handle test removal/cancellation from expanded row.
-   * Updates local state to remove the test from the sample item.
-   */
-  const handleTestRemoved = (sampleItemId, analysisId, testName) => {
-    // Update local state to remove the cancelled test
+  const handleTestRemoved = (
+    sampleItemId: string,
+    analysisId: string,
+    testName: string,
+  ) => {
     if (searchResponse && searchResponse.sampleItems) {
       const updatedSampleItems = searchResponse.sampleItems.map((item) => {
         if (item.id === sampleItemId) {
           return {
             ...item,
-            orderedTests: item.orderedTests.filter(
+            orderedTests: (item.orderedTests || []).filter(
               (test) => test.analysisId !== analysisId,
             ),
           };
@@ -338,7 +293,6 @@ export default function SampleManagement() {
       });
     }
 
-    // Show success notification
     setSearchError({
       message: intl.formatMessage(
         { id: "sample.management.cancelTest.success" },
@@ -350,10 +304,8 @@ export default function SampleManagement() {
 
   return (
     <>
-      {/* Breadcrumb Navigation */}
       <PageBreadCrumb breadcrumbs={breadcrumbs} />
 
-      {/* Page Header */}
       <Grid fullWidth={true}>
         <Column lg={16} md={8} sm={4}>
           <Section>
@@ -368,7 +320,6 @@ export default function SampleManagement() {
       </Grid>
 
       <div className="orderLegendBody">
-        {/* Notification (Error or Success) */}
         {searchError && (
           <Grid fullWidth={true}>
             <Column lg={16} md={8} sm={4}>
@@ -387,7 +338,6 @@ export default function SampleManagement() {
           </Grid>
         )}
 
-        {/* Search Section */}
         <Grid fullWidth={true}>
           <Column lg={16} md={8} sm={4}>
             <Section>
@@ -410,7 +360,6 @@ export default function SampleManagement() {
           </Column>
         </Grid>
 
-        {/* Search Results Metadata */}
         {searchResponse &&
           searchResponse.sampleItems &&
           searchResponse.sampleItems.length > 0 && (
@@ -434,7 +383,6 @@ export default function SampleManagement() {
                       gap: "0.5rem",
                     }}
                   >
-                    {/* Left side: Summary info */}
                     <div
                       style={{
                         display: "flex",
@@ -492,7 +440,6 @@ export default function SampleManagement() {
                       )}
                     </div>
 
-                    {/* Right side: Quick selection buttons */}
                     <div style={{ display: "flex", gap: "0.5rem" }}>
                       {aliquotStats.aliquotCount > 0 && (
                         <Button
@@ -538,7 +485,6 @@ export default function SampleManagement() {
             </Grid>
           )}
 
-        {/* Empty State (when search has been performed but no results) */}
         {searchResponse &&
           searchResponse.sampleItems &&
           searchResponse.sampleItems.length === 0 && (
@@ -559,7 +505,6 @@ export default function SampleManagement() {
             </Grid>
           )}
 
-        {/* Action Buttons */}
         {searchResponse &&
           searchResponse.sampleItems &&
           searchResponse.sampleItems.length > 0 &&
@@ -574,7 +519,6 @@ export default function SampleManagement() {
                     gap: "1rem",
                   }}
                 >
-                  {/* Create Aliquot Button (only when single sample selected) */}
                   {selectedSampleIds.length === 1 && selectedSample && (
                     <Button
                       kind="primary"
@@ -589,7 +533,6 @@ export default function SampleManagement() {
                     </Button>
                   )}
 
-                  {/* Add Tests Button (available when any samples are selected) */}
                   <Button
                     kind="secondary"
                     renderIcon={Chemistry}
@@ -601,7 +544,6 @@ export default function SampleManagement() {
                     />
                   </Button>
 
-                  {/* Print Barcode Button */}
                   <Button
                     kind="tertiary"
                     renderIcon={Printer}
@@ -614,7 +556,6 @@ export default function SampleManagement() {
             </Grid>
           )}
 
-        {/* Results Table Section */}
         {searchResponse &&
           searchResponse.sampleItems &&
           searchResponse.sampleItems.length > 0 && (
@@ -645,7 +586,6 @@ export default function SampleManagement() {
           )}
       </div>
 
-      {/* Create Aliquot Modal */}
       {selectedSample && (
         <CreateAliquotModal
           open={isAliquotModalOpen}
@@ -655,7 +595,6 @@ export default function SampleManagement() {
         />
       )}
 
-      {/* Add Tests Modal */}
       <AddTestsModal
         open={isAddTestsModalOpen}
         onClose={handleCloseAddTestsModal}

@@ -3,29 +3,33 @@ import { Search, Loading, Button } from "@carbon/react";
 import { Search as SearchIcon } from "@carbon/icons-react";
 import { useIntl } from "react-intl";
 import { getFromOpenElisServer } from "../utils/Utils";
+import type {
+  SearchBannerState,
+  SearchSamplesResponse,
+} from "./sampleManagementTypes";
+
+export interface SampleSearchProps {
+  onSearchResults: (
+    response: SearchSamplesResponse | null,
+    error: SearchBannerState | null,
+  ) => void;
+  includeTests?: boolean;
+}
 
 /**
  * SampleSearch - Search component for finding sample items by accession number.
  *
- * Features:
- * - Debounced search input (300ms delay)
- * - Loading state while fetching results
- * - Error handling with callback
- * - React Intl for internationalization
- *
- * Props:
- * - onSearchResults: (response, error) => void - callback with search results or error
- * - includeTests: boolean - whether to load ordered tests with sample items
- *
  * Related: Feature 001-sample-management, User Story 1, Task T033
  */
-function SampleSearch({ onSearchResults, includeTests = false }) {
+function SampleSearch({
+  onSearchResults,
+  includeTests = false,
+}: SampleSearchProps) {
   const intl = useIntl();
   const [searchValue, setSearchValue] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const debounceTimerRef = useRef(null);
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Cleanup debounce timer on unmount
   useEffect(() => {
     return () => {
       if (debounceTimerRef.current) {
@@ -34,13 +38,9 @@ function SampleSearch({ onSearchResults, includeTests = false }) {
     };
   }, []);
 
-  /**
-   * Perform the actual search API call.
-   */
   const performSearch = useCallback(
-    (accessionNumber) => {
+    (accessionNumber: string) => {
       if (!accessionNumber || accessionNumber.trim() === "") {
-        // Clear results when search is empty
         onSearchResults(null, null);
         setIsLoading(false);
         return;
@@ -52,14 +52,12 @@ function SampleSearch({ onSearchResults, includeTests = false }) {
         accessionNumber.trim(),
       )}&includeTests=${includeTests}`;
 
-      getFromOpenElisServer(endpoint, (response) => {
+      getFromOpenElisServer(endpoint, (response: unknown) => {
         setIsLoading(false);
 
         if (response) {
-          // Successful response
-          onSearchResults(response, null);
+          onSearchResults(response as SearchSamplesResponse, null);
         } else {
-          // Error or no data
           onSearchResults(null, {
             message: intl.formatMessage({
               id: "sample.management.search.error.general",
@@ -71,49 +69,34 @@ function SampleSearch({ onSearchResults, includeTests = false }) {
     [includeTests, onSearchResults, intl],
   );
 
-  /**
-   * Handle search input change - no longer auto-triggers search.
-   */
-  const handleSearchChange = (event) => {
+  const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = event.target.value;
     setSearchValue(newValue);
 
-    // Clear any pending debounced search
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
     }
   };
 
-  /**
-   * Handle search button click or Enter key press.
-   */
   const handleSearchSubmit = () => {
     performSearch(searchValue);
   };
 
-  /**
-   * Handle key press - trigger search on Enter.
-   */
-  const handleKeyDown = (event) => {
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
     if (event.key === "Enter") {
       event.preventDefault();
       handleSearchSubmit();
     }
   };
 
-  /**
-   * Handle search clear (X button clicked).
-   */
   const handleClearSearch = () => {
     setSearchValue("");
     setIsLoading(false);
 
-    // Clear any pending debounced search
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
     }
 
-    // Clear results
     onSearchResults(null, null);
   };
 
