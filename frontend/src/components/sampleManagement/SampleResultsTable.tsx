@@ -19,40 +19,43 @@ import {
 import { useIntl, FormattedMessage } from "react-intl";
 import { Folder, Document, TrashCan, Chemistry } from "@carbon/icons-react";
 import { postToOpenElisServerFullResponse } from "../utils/Utils";
+import type {
+  OrderedTest,
+  SampleItem,
+  SampleResultsTableRow,
+} from "./sampleManagementTypes";
 
-/**
- * SampleResultsTable - Display search results for sample items in a data table.
- *
- * Features:
- * - Carbon DataTable with multi-select capability
- * - Expandable rows to show ordered tests
- * - Parent-child hierarchy indicators
- * - Quantity display with unit of measure
- * - Status visualization with tags
- * - Nesting level indicators
- * - Test cancellation/removal functionality
- * - React Intl for internationalization
- *
- * Props:
- * - sampleItems: Array<SampleItemDTO> - array of sample items to display
- * - onSelectionChange: (selectedIds) => void - callback when selection changes
- * - onTestRemoved: (sampleItemId, testId, testName) => void - callback when a test is removed
- *
- * Related: Feature 001-sample-management, User Story 1, Task T034
- */
+export interface SampleResultsTableProps {
+  sampleItems?: SampleItem[];
+  onSelectionChange?: (selectedIds: string[]) => void;
+  onTestRemoved?: (
+    sampleItemId: string,
+    analysisId: string,
+    testName: string,
+  ) => void;
+}
+
+/** Carbon-processed row shape used inside DataTable render prop. */
+interface CarbonDataRow {
+  id: string;
+  cells: Array<{
+    id: string;
+    info: { header: string };
+    value: React.ReactNode;
+  }>;
+}
+
 function SampleResultsTable({
   sampleItems = [],
   onSelectionChange,
   onTestRemoved,
-}) {
+}: SampleResultsTableProps) {
   const intl = useIntl();
 
-  // Track which tests are being cancelled (loading state)
-  const [cancellingTests, setCancellingTests] = useState({});
+  const [cancellingTests, setCancellingTests] = useState<
+    Record<string, boolean>
+  >({});
 
-  /**
-   * Table headers configuration.
-   */
   const headers = useMemo(
     () => [
       {
@@ -101,13 +104,8 @@ function SampleResultsTable({
     [intl],
   );
 
-  /**
-   * Transform sample items to table rows.
-   * Uses effectiveRemainingQuantity from backend (already calculated with fallback logic).
-   */
-  const rows = useMemo(() => {
+  const rows: SampleResultsTableRow[] = useMemo(() => {
     return sampleItems.map((item) => {
-      // Backend sends effectiveRemainingQuantity which handles null remainingQuantity
       const displayRemaining = item.effectiveRemainingQuantity;
       const testCount = item.orderedTests ? item.orderedTests.length : 0;
 
@@ -122,9 +120,9 @@ function SampleResultsTable({
           ? `${displayRemaining} ${item.unitOfMeasure || ""}`
           : "-",
         statusId: item.statusId,
-        isAliquot: item.isAliquot,
+        isAliquot: Boolean(item.isAliquot),
         nestingLevel: item.nestingLevel || 0,
-        hasRemainingQuantity: item.hasRemainingQuantity,
+        hasRemainingQuantity: Boolean(item.hasRemainingQuantity),
         childAliquotCount: item.childAliquots ? item.childAliquots.length : 0,
         parentExternalId: item.parentExternalId,
         orderedTests: item.orderedTests || [],
@@ -134,12 +132,8 @@ function SampleResultsTable({
     });
   }, [sampleItems]);
 
-  /**
-   * Handle test cancellation/removal.
-   */
   const handleCancelTest = useCallback(
-    (sampleItemId, analysisId, testName) => {
-      // Set loading state for this specific test
+    (sampleItemId: string, analysisId: string, testName: string) => {
       setCancellingTests((prev) => ({ ...prev, [analysisId]: true }));
 
       const payload = JSON.stringify({
@@ -154,12 +148,10 @@ function SampleResultsTable({
           setCancellingTests((prev) => ({ ...prev, [analysisId]: false }));
 
           if (response.ok) {
-            // Notify parent to refresh data
             if (onTestRemoved) {
               onTestRemoved(sampleItemId, analysisId, testName);
             }
           } else {
-            // Handle error - could show notification
             console.error("Failed to cancel test");
           }
         },
@@ -168,16 +160,10 @@ function SampleResultsTable({
     [onTestRemoved],
   );
 
-  /**
-   * Render status tag based on statusId and remaining quantity.
-   * Finds the original row data to access all properties.
-   */
-  const renderStatusTag = (dataTableRow) => {
-    // Find the original row data by ID
+  const renderStatusTag = (dataTableRow: CarbonDataRow) => {
     const originalRow = rows.find((r) => r.id === dataTableRow.id);
     if (!originalRow) return null;
 
-    // Only show a tag if there's no remaining quantity
     if (!originalRow.hasRemainingQuantity) {
       return (
         <Tag type="red">
@@ -188,14 +174,10 @@ function SampleResultsTable({
       );
     }
 
-    // If there's remaining quantity, don't show a status tag
     return null;
   };
 
-  /**
-   * Render tests count with icon.
-   */
-  const renderTestsCount = (dataTableRow) => {
+  const renderTestsCount = (dataTableRow: CarbonDataRow) => {
     const originalRow = rows.find((r) => r.id === dataTableRow.id);
     if (!originalRow) return null;
 
@@ -210,16 +192,11 @@ function SampleResultsTable({
     return <span style={{ color: "#6f6f6f" }}>-</span>;
   };
 
-  /**
-   * Render hierarchy indicator showing parent-child relationships.
-   * Finds the original row data to access all properties.
-   */
-  const renderHierarchyIndicator = (dataTableRow) => {
-    // Find the original row data by ID
+  const renderHierarchyIndicator = (dataTableRow: CarbonDataRow) => {
     const originalRow = rows.find((r) => r.id === dataTableRow.id);
     if (!originalRow) return null;
 
-    const nestingIndent = originalRow.nestingLevel * 16; // 16px per level
+    const nestingIndent = originalRow.nestingLevel * 16;
 
     return (
       <div style={{ display: "flex", alignItems: "center" }}>
@@ -260,10 +237,7 @@ function SampleResultsTable({
     );
   };
 
-  /**
-   * Render expanded row content with test details.
-   */
-  const renderExpandedContent = (row) => {
+  const renderExpandedContent = (row: CarbonDataRow) => {
     const originalRow = rows.find((r) => r.id === row.id);
     if (!originalRow || originalRow.orderedTests.length === 0) {
       return (
@@ -303,7 +277,7 @@ function SampleResultsTable({
             gap: "0.5rem",
           }}
         >
-          {originalRow.orderedTests.map((test) => (
+          {originalRow.orderedTests.map((test: OrderedTest) => (
             <div
               key={test.analysisId}
               style={{
@@ -372,11 +346,21 @@ function SampleResultsTable({
     );
   };
 
-  /**
-   * Get tag type based on test status.
-   */
-  const getTestStatusType = (status) => {
-    if (!status) return "gray";
+  const getTestStatusType = (
+    status: string,
+  ):
+    | "red"
+    | "magenta"
+    | "purple"
+    | "blue"
+    | "cyan"
+    | "teal"
+    | "green"
+    | "gray"
+    | "cool-gray"
+    | "warm-gray"
+    | "high-contrast"
+    | "outline" => {
     const statusLower = status.toLowerCase();
     if (
       statusLower.includes("complete") ||
@@ -401,14 +385,9 @@ function SampleResultsTable({
     return "gray";
   };
 
-  /**
-   * Check if a test can be cancelled based on its status.
-   * Tests that are already completed or validated cannot be cancelled.
-   */
-  const canCancelTest = (status) => {
+  const canCancelTest = (status?: string) => {
     if (!status) return true;
     const statusLower = status.toLowerCase();
-    // Cannot cancel tests that are already completed, validated, or cancelled
     return !(
       statusLower.includes("complete") ||
       statusLower.includes("final") ||
@@ -439,8 +418,8 @@ function SampleResultsTable({
       headers={headers}
       isSortable
       render={({
-        rows,
-        headers,
+        rows: carbonRows,
+        headers: carbonHeaders,
         getHeaderProps,
         getRowProps,
         getSelectionProps,
@@ -449,8 +428,7 @@ function SampleResultsTable({
         selectedRows,
         selectRow,
       }) => {
-        // Notify parent of selection changes
-        const notifySelectionChange = (newSelectedRows) => {
+        const notifySelectionChange = (newSelectedRows: CarbonDataRow[]) => {
           if (onSelectionChange) {
             onSelectionChange(newSelectedRows.map((r) => r.id));
           }
@@ -467,27 +445,24 @@ function SampleResultsTable({
                 <TableSelectAll
                   {...getSelectionProps()}
                   onSelect={() => {
-                    // Toggle select all
-                    if (selectedRows.length === rows.length) {
-                      // Deselect all
-                      rows.forEach((row) => {
+                    if (selectedRows.length === carbonRows.length) {
+                      carbonRows.forEach((row) => {
                         if (selectedRows.some((r) => r.id === row.id)) {
                           selectRow(row.id);
                         }
                       });
                       notifySelectionChange([]);
                     } else {
-                      // Select all
-                      rows.forEach((row) => {
+                      carbonRows.forEach((row) => {
                         if (!selectedRows.some((r) => r.id === row.id)) {
                           selectRow(row.id);
                         }
                       });
-                      notifySelectionChange(rows);
+                      notifySelectionChange(carbonRows as CarbonDataRow[]);
                     }
                   }}
                 />
-                {headers.map((header) => (
+                {carbonHeaders.map((header) => (
                   <TableHeader key={header.key} {...getHeaderProps({ header })}>
                     {header.header}
                   </TableHeader>
@@ -495,8 +470,7 @@ function SampleResultsTable({
               </TableRow>
             </TableHead>
             <TableBody>
-              {rows.map((row) => {
-                // Find original row data for styling and expansion
+              {carbonRows.map((row) => {
                 const originalRow = sampleItems.find(
                   (item) => item.id === row.id,
                 );
@@ -505,12 +479,13 @@ function SampleResultsTable({
                   originalRow?.orderedTests &&
                   originalRow.orderedTests.length > 0;
 
+                const typedRow = row as CarbonDataRow;
+
                 return (
                   <React.Fragment key={row.id}>
                     <TableExpandRow
                       {...getRowProps({ row })}
                       style={{
-                        // Add subtle left border for aliquots
                         borderLeft: isAliquotRow ? "3px solid #0f62fe" : "none",
                         backgroundColor: isAliquotRow ? "#f0f7ff" : "inherit",
                       }}
@@ -519,36 +494,37 @@ function SampleResultsTable({
                         {...getSelectionProps({ row })}
                         onSelect={() => {
                           selectRow(row.id);
-                          // Calculate new selection after toggle
                           const isCurrentlySelected = selectedRows.some(
                             (r) => r.id === row.id,
                           );
                           const newSelection = isCurrentlySelected
                             ? selectedRows.filter((r) => r.id !== row.id)
                             : [...selectedRows, row];
-                          notifySelectionChange(newSelection);
+                          notifySelectionChange(
+                            newSelection as CarbonDataRow[],
+                          );
                         }}
                       />
-                      {row.cells.map((cell) => (
+                      {typedRow.cells.map((cell) => (
                         <TableCell key={cell.id}>
                           {cell.info.header === "status"
-                            ? renderStatusTag(row)
+                            ? renderStatusTag(typedRow)
                             : cell.info.header === "hierarchy"
-                              ? renderHierarchyIndicator(row)
+                              ? renderHierarchyIndicator(typedRow)
                               : cell.info.header === "tests"
-                                ? renderTestsCount(row)
+                                ? renderTestsCount(typedRow)
                                 : cell.value}
                         </TableCell>
                       ))}
                     </TableExpandRow>
                     <TableExpandedRow
-                      colSpan={headers.length + 2}
+                      colSpan={carbonHeaders.length + 2}
                       className="sample-expanded-row"
                       style={{
                         backgroundColor: hasTests ? "#fafafa" : "#fff",
                       }}
                     >
-                      {renderExpandedContent(row)}
+                      {renderExpandedContent(typedRow)}
                     </TableExpandedRow>
                   </React.Fragment>
                 );
