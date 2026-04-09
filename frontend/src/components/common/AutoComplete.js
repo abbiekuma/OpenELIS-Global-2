@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from "react";
 import "../admin/reflexTests/ReflexStyles.css";
 import { TextInput } from "@carbon/react";
+import { useIntl } from "react-intl";
 
 function AutoComplete(props) {
+  const intl = useIntl();
   const allowFreeText = props.allowFreeText;
 
   const [textValue, setTextValue] = useState("");
@@ -12,6 +14,15 @@ function AutoComplete(props) {
   const [userInput, setUserInput] = useState("");
   const [invalid, setInvalid] = useState(false);
   const [innitialised, setInnitialised] = useState(false);
+
+  const noSuggestionsMessage = intl.formatMessage({
+    id: "rulebuilder.label.noSuggestions",
+  });
+
+  const emptyFilterWhileTyping =
+    showSuggestions &&
+    Boolean(userInput && String(userInput).trim()) &&
+    filteredSuggestions.length === 0;
 
   useEffect(() => {
     if (props.value && !innitialised) {
@@ -44,12 +55,19 @@ function AutoComplete(props) {
     setShowSuggestions(true);
     setInnitialised(true);
 
-    if (filteredSuggestions.length == 0 && !allowFreeText) {
+    if (filteredSuggestions.length > 0) {
+      setInvalid(false);
+    } else if (!allowFreeText) {
       setInvalid(true);
     }
+
     if (typeof props.onChange === "function") {
       props.onChange(e);
     }
+  };
+
+  const onBlur = () => {
+    setShowSuggestions(false);
   };
 
   const onClick = (e, id, suggestion) => {
@@ -99,39 +117,39 @@ function AutoComplete(props) {
   };
 
   let suggestionsListComponent;
-  if (showSuggestions && userInput) {
-    if (filteredSuggestions.length) {
-      suggestionsListComponent = (
-        <div className="suggestions-container">
-          <ul className="suggestions">
-            {filteredSuggestions.map((suggestion, index) => {
-              let className;
-              // Flag the active suggestion with a class
-              if (index === activeSuggestion) {
-                className = "suggestion-active";
-              }
-              return (
-                <li
-                  data-cy="auto-suggestion"
-                  className={className}
-                  key={index}
-                  onClick={(e) => onClick(e, suggestion.id, suggestion)}
-                >
-                  {suggestion.value}
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      );
-    } else {
-      suggestionsListComponent = (
-        <div className="no-suggestions">
-          <em>No suggestions available.</em>
-        </div>
-      );
-    }
+  if (showSuggestions && userInput && filteredSuggestions.length > 0) {
+    suggestionsListComponent = (
+      <div className="suggestions-container">
+        <ul className="suggestions">
+          {filteredSuggestions.map((suggestion, index) => {
+            let className;
+            // Flag the active suggestion with a class
+            if (index === activeSuggestion) {
+              className = "suggestion-active";
+            }
+            return (
+              <li
+                data-cy="auto-suggestion"
+                className={className}
+                key={index}
+                onClick={(e) => onClick(e, suggestion.id, suggestion)}
+              >
+                {suggestion.value}
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+    );
   }
+
+  const helperText = emptyFilterWhileTyping ? (
+    <span className="auto-complete-no-suggestions-helper">
+      {noSuggestionsMessage}
+    </span>
+  ) : props.helperText !== undefined ? (
+    props.helperText
+  ) : undefined;
 
   return (
     <>
@@ -143,10 +161,12 @@ function AutoComplete(props) {
         className={props.class}
         onChange={onChange}
         onKeyDown={onKeyDown}
+        onBlur={onBlur}
         value={textValue}
         invalid={invalid}
-        required={props.required ? props.required : false}
         invalidText={props.invalidText}
+        helperText={helperText}
+        required={props.required ? props.required : false}
       />
       {suggestionsListComponent}
     </>
