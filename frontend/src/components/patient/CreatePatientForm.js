@@ -836,48 +836,67 @@ function CreatePatientForm(props) {
                 </Column>
                 <Column lg={8} md={4} sm={4}>
                   <Field name="nationalId">
-                    {({ field }) => (
-                      <TextInput
-                        value={values.nationalId || ""}
-                        name={field.name}
-                        labelText={
-                          <>
-                            {intl.formatMessage({
-                              id: "patient.natioanalid",
-                            })}
-                            <span className="requiredlabel">*</span>
-                          </>
-                        }
-                        id={field.name}
-                        invalid={
-                          props.error
-                            ? props.error("patientProperties.nationalId")
-                              ? true
-                              : false
-                            : false
-                        }
-                        invalidText={
-                          props.error
-                            ? props.error("patientProperties.nationalId")
-                            : ""
-                        }
-                        onMouseOut={() => {
-                          handleSubjectNoValidation(
-                            "nationalId",
-                            "nationalID",
-                            values.nationalId,
-                          );
-                        }}
-                        onChange={handleNationalIdChange}
-                        placeholder={intl.formatMessage({
-                          id: "patient.information.nationalid",
-                        })}
-                      />
-                    )}
+                    {({ field }) => {
+                      const isOrderEntryPatientStep =
+                        props.changed !== undefined;
+                      const orderNationalIdInvalid =
+                        !!(
+                          isOrderEntryPatientStep &&
+                          props.changed["patientProperties.nationalId"] &&
+                          props.error &&
+                          props.error("patientProperties.nationalId")
+                        );
+                      const formikNationalIdInvalid = !!(
+                        !isOrderEntryPatientStep &&
+                        errors.nationalId &&
+                        touched.nationalId
+                      );
+                      const nationalIdInvalid =
+                        orderNationalIdInvalid || formikNationalIdInvalid;
+                      return (
+                        <TextInput
+                          value={values.nationalId || ""}
+                          name={field.name}
+                          labelText={
+                            <>
+                              {intl.formatMessage({
+                                id: "patient.natioanalid",
+                              })}
+                              <span className="requiredlabel">*</span>
+                            </>
+                          }
+                          id={field.name}
+                          invalid={nationalIdInvalid}
+                          invalidText={
+                            nationalIdInvalid
+                              ? orderNationalIdInvalid
+                                ? props.error("patientProperties.nationalId")
+                                : errors.nationalId || ""
+                              : ""
+                          }
+                          onClick={() => {
+                            if (props.setChanged) {
+                              props.setChanged((prev) => ({
+                                ...prev,
+                                "patientProperties.nationalId": true,
+                              }));
+                            }
+                          }}
+                          onMouseOut={() => {
+                            handleSubjectNoValidation(
+                              "nationalId",
+                              "nationalID",
+                              values.nationalId,
+                            );
+                          }}
+                          onChange={handleNationalIdChange}
+                          placeholder={intl.formatMessage({
+                            id: "patient.information.nationalid",
+                          })}
+                        />
+                      );
+                    }}
                   </Field>
-                  <div className="error">
-                    <ErrorMessage name="nationalId"></ErrorMessage>
-                  </div>
                 </Column>
                 <Column lg={16} md={8} sm={4}>
                   {" "}
